@@ -5,30 +5,52 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Zap, Eye, EyeOff } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { apiService } from "@/lib/api-service"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
-    if (username === "admin" && password === "admin") {
-      // Store session in localStorage
-      localStorage.setItem("isAuthenticated", "true")
-      localStorage.setItem("username", username)
-      router.push("/")
-    } else {
-      setError("Credenciales inválidas. Usuario: admin, Contraseña: admin")
-    }
+    try {
+      const response = await apiService.login(username, password)
 
-    setIsLoading(false)
+      if (response.token && response.userId) {
+        localStorage.setItem("isAuthenticated", "true")
+        localStorage.setItem("username", response.username || username)
+        localStorage.setItem("userId", response.userId.toString())
+        localStorage.setItem("authToken", response.token)
+
+        toast({
+          title: "Éxito",
+          description: `Bienvenido, ${response.username || username}!`,
+        })
+
+        router.push("/")
+      } else {
+        setError(response.message || "Error en la autenticación")
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error al conectar con el servidor"
+      setError(errorMessage)
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -101,7 +123,7 @@ export default function LoginPage() {
 
           {/* Help Text */}
           <div className="mt-8 p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50">
-            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Credenciales de prueba:</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Prueba con:</p>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
               Usuario: <span className="font-mono">admin</span>
             </p>

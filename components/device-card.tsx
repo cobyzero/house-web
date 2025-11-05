@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { Lightbulb, Wind, Tv, Feather as Washer, Speaker, Camera } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
+import { useToast } from "@/hooks/use-toast"
+import { apiService } from "@/lib/api-service"
 
 interface DeviceCardProps {
   id: number
@@ -30,13 +32,47 @@ const typeLabels = {
   camera: "Cámara",
 }
 
-export default function DeviceCard({ name, type, state: initialState, level = 0 }: DeviceCardProps) {
+export default function DeviceCard({ id, name, type, state: initialState, level = 0 }: DeviceCardProps) {
+  const { toast } = useToast()
   const [isOn, setIsOn] = useState(initialState)
   const [deviceLevel, setDeviceLevel] = useState(level)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [isToggling, setIsToggling] = useState(false)
 
   const Icon = iconMap[type]
   const hasLevel = ["light", "ac", "speaker"].includes(type)
+
+  const handleToggle = async () => {
+    setIsToggling(true)
+    const previousState = isOn
+
+    // Optimistic update
+    setIsOn(!previousState)
+
+    try {
+      if (type === "light") {
+        await apiService.toggleLight(id, !previousState)
+      } else if (type === "ac" || type === "washer") {
+        await apiService.toggleVentilation(id, !previousState)
+      }
+
+      toast({
+        title: "Éxito",
+        description: `${name} ${!previousState ? "encendido" : "apagado"}`,
+      })
+    } catch (err) {
+      // Revert on error
+      setIsOn(previousState)
+      const errorMessage = err instanceof Error ? err.message : "Error al cambiar dispositivo"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsToggling(false)
+    }
+  }
 
   return (
     <>
@@ -54,8 +90,10 @@ export default function DeviceCard({ name, type, state: initialState, level = 0 
             </div>
           </div>
           <button
-            onClick={() => setIsOn(!isOn)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full smooth-transition ${
+            onClick={handleToggle}
+            disabled={isToggling}
+            aria-label={`Toggle ${name}`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full smooth-transition disabled:opacity-50 ${
               isOn ? "bg-accent" : "bg-muted"
             }`}
           >

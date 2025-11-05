@@ -3,33 +3,124 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Power, Zap, LogOut } from "lucide-react"
+import { Power, Zap, LogOut, Plus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 import RoomCard from "@/components/room-card"
 import DeviceCard from "@/components/device-card"
+import { apiService } from "@/lib/api-service"
+
+interface House {
+  id: number
+  name: string
+}
+
+interface Room {
+  id: number
+  name: string
+  houseId: number
+}
+
+interface Device {
+  id: number
+  name: string
+  type: "light" | "ventilation" | "temperature" | "other"
+  state?: boolean
+}
 
 export default function Dashboard() {
   const router = useRouter()
+  const { toast } = useToast()
   const [masterSwitch, setMasterSwitch] = useState(true)
   const [activeTab, setActiveTab] = useState("rooms")
   const [username, setUsername] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [house, setHouse] = useState<House | null>(null)
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [devices, setDevices] = useState<Device[]>([])
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false)
+  const [newRoomName, setNewRoomName] = useState("")
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("isAuthenticated")
-    const storedUsername = localStorage.getItem("username")
+    const initDashboard = async () => {
+      const isAuthenticated = localStorage.getItem("isAuthenticated")
+      const storedUsername = localStorage.getItem("username")
+      const userId = localStorage.getItem("userId")
 
-    if (!isAuthenticated) {
-      router.push("/login")
-    } else {
+      if (!isAuthenticated || !userId) {
+        router.push("/login")
+        return
+      }
+
       setUsername(storedUsername || "Usuario")
-      setIsLoading(false)
+
+      try {
+        // Fetch user's house
+        const houseResponse = await apiService.findUserHouse(Number.parseInt(userId))
+        if (houseResponse.data) {
+          setHouse(houseResponse.data)
+
+          // Fetch devices by house
+          const devicesResponse = await apiService.findDevicesByHouseId(houseResponse.data.id)
+          if (devicesResponse.data) {
+            setDevices(devicesResponse.data)
+          }
+
+          // TODO: Fetch rooms when endpoint is available
+          // For now using mock rooms structure
+          setRooms([
+            { id: 1, name: "Sala", houseId: houseResponse.data.id },
+            { id: 2, name: "Dormitorio", houseId: houseResponse.data.id },
+            { id: 3, name: "Cocina", houseId: houseResponse.data.id },
+          ])
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Error al cargar datos"
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [router])
+
+    initDashboard()
+  }, [router, toast])
+
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim() || !house) return
+
+    setIsCreatingRoom(true)
+    try {
+      const response = await apiService.createRoom(house.id, newRoomName)
+      if (response.data) {
+        setRooms([...rooms, response.data])
+        setNewRoomName("")
+        toast({
+          title: "Éxito",
+          description: `Cuarto "${newRoomName}" creado`,
+        })
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error al crear cuarto"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreatingRoom(false)
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("isAuthenticated")
     localStorage.removeItem("username")
+    localStorage.removeItem("userId")
+    localStorage.removeItem("authToken")
+    apiService.clearToken()
     router.push("/login")
   }
 
@@ -43,21 +134,6 @@ export default function Dashboard() {
       </main>
     )
   }
-
-  const rooms = [
-    { id: 1, name: "Sala", deviceCount: 5, image: "/modern-living-room.png" },
-    { id: 2, name: "Living Room", deviceCount: 4, image: "/cozy-living-area.jpg" },
-    { id: 3, name: "Dining Room", deviceCount: 3, image: "/elegant-dining-room.png" },
-    { id: 4, name: "Washing Room", deviceCount: 2, image: "/modern-laundry-room.jpg" },
-  ]
-
-  const devices = [
-    { id: 1, name: "Luz Principal", type: "light", state: true, level: 85 },
-    { id: 2, name: "Aire Acondicionado", type: "ac", state: true, level: 72 },
-    { id: 3, name: "TV Smart", type: "tv", state: false, level: 0 },
-    { id: 4, name: "Speaker", type: "speaker", state: true, level: 60 },
-    { id: 5, name: "Cámara Seguridad", type: "camera", state: true, level: 0 },
-  ]
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 smooth-transition">
@@ -98,8 +174,8 @@ export default function Dashboard() {
       {/* Hero Card */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="glass-hover gradient-hero rounded-3xl p-8 text-white shadow-2xl">
-          <h2 className="text-3xl font-bold mb-2">Mi Casa</h2>
-          <p className="text-white/80 mb-6">Sala principal</p>
+          <h2 className="text-3xl font-bold mb-2">{house?.name || "Mi Casa"}</h2>
+          <p className="text-white/80 mb-6">Gestiona tus dispositivos inteligentes</p>
           <div className="flex items-end gap-8">
             <div>
               <p className="text-6xl font-bold">23°C</p>
@@ -122,20 +198,65 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="rooms" className="space-y-6">
+            {/* Create Room Section */}
+            <div className="glass rounded-2xl p-4 space-y-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Agregar Cuarto
+              </h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newRoomName}
+                  onChange={(e) => setNewRoomName(e.target.value)}
+                  placeholder="Nombre del cuarto"
+                  className="flex-1 px-4 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border border-white/20 dark:border-slate-700/50 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  disabled={isCreatingRoom}
+                />
+                <button
+                  onClick={handleCreateRoom}
+                  disabled={isCreatingRoom || !newRoomName.trim()}
+                  className="px-6 py-2 rounded-lg gradient-hero text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCreatingRoom ? "Creando..." : "Crear"}
+                </button>
+              </div>
+            </div>
+
+            {/* Rooms Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {rooms.map((room) => (
-                <Link key={room.id} href={`/room/${room.id}`}>
-                  <RoomCard {...room} />
-                </Link>
-              ))}
+              {rooms.length > 0 ? (
+                rooms.map((room) => (
+                  <Link key={room.id} href={`/room/${room.id}`}>
+                    <RoomCard
+                      id={room.id}
+                      name={room.name}
+                      deviceCount={devices.filter((d) => d.roomId === room.id).length}
+                      image="/placeholder.svg"
+                    />
+                  </Link>
+                ))
+              ) : (
+                <p className="text-muted-foreground col-span-full text-center py-8">No hay cuartos disponibles</p>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="devices" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {devices.map((device) => (
-                <DeviceCard key={device.id} {...device} />
-              ))}
+              {devices.length > 0 ? (
+                devices.map((device) => (
+                  <DeviceCard
+                    key={device.id}
+                    id={device.id}
+                    name={device.name}
+                    type={device.type === "light" ? "light" : device.type === "ventilation" ? "washer" : "tv"}
+                    state={device.state || false}
+                  />
+                ))
+              ) : (
+                <p className="text-muted-foreground col-span-full text-center py-8">No hay dispositivos disponibles</p>
+              )}
             </div>
           </TabsContent>
         </Tabs>
