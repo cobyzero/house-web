@@ -9,25 +9,7 @@ import { useToast } from "@/hooks/use-toast"
 import RoomCard from "@/components/room-card"
 import DeviceCard from "@/components/device-card"
 import { apiService } from "@/lib/api-service"
-
-interface House {
-  id: number
-  name: string
-}
-
-interface Room {
-  id: number
-  name: string
-  houseId: number
-}
-
-interface Device {
-  id: number
-  name: string
-  type: "light" | "ventilation" | "temperature" | "other"
-  state?: boolean
-}
-
+import { House, Room, Device } from "@/lib/api-service"
 export default function Dashboard() {
   const router = useRouter()
   const { toast } = useToast()
@@ -66,13 +48,10 @@ export default function Dashboard() {
             setDevices(devicesResponse.data)
           }
 
-          // TODO: Fetch rooms when endpoint is available
-          // For now using mock rooms structure
-          setRooms([
-            { id: 1, name: "Sala", houseId: houseResponse.data.id },
-            { id: 2, name: "Dormitorio", houseId: houseResponse.data.id },
-            { id: 3, name: "Cocina", houseId: houseResponse.data.id },
-          ])
+          const roomsResponse = await apiService.findRoomsByHouseId(houseResponse.data.id)
+          if (roomsResponse.data) {
+            setRooms(roomsResponse.data)
+          }
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Error al cargar datos"

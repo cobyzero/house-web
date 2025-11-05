@@ -1,37 +1,37 @@
-import { API_BASE, API_URL } from "./config"
+import { API_BASE } from "./config"
 
-interface ApiResponse<T> {
-  data?: T
-  message?: string
-  error?: string
+
+interface ResponseBase<T> {
+  data?: T;
+  message: string;
+  code: number;
 }
 
-interface LoginResponse {
-    data:    DataLoginResponse | null;
-    message: string;
-    code:    number;
+export interface DataLoginResponse {
+  id: number;
+  name: string;
+  username: string;
+  password: string;
 }
 
-interface DataLoginResponse {
-    id:       number;
-    name:     string;
-    username: string;
-    password: string;
+export interface House {
+  id: number;
+  name: string;
+  temperature: number;
+  alarmActive: boolean;
+  userId: number;
 }
 
-interface House {
-  id: number
-  name: string
-  userId: number
+export interface Room {
+  id: number;
+  name: string;
+  house_id: number;
+  temperature: number;
+  light: boolean;
+  ventilation: boolean;
 }
 
-interface Room {
-  id: number
-  name: string
-  houseId: number
-}
-
-interface Device {
+export interface Device {
   id: number
   name: string
   roomId: number
@@ -53,13 +53,9 @@ class ApiService {
     endpoint: string,
     method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
     body?: unknown,
-  ): Promise<T> {
+  ): Promise<ResponseBase<T>> {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
-    }
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`
     }
 
     const options: RequestInit = {
@@ -71,7 +67,7 @@ class ApiService {
       options.body = JSON.stringify(body)
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, options)
+    const response = await fetch(`${API_BASE}${endpoint}`, options)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -82,28 +78,14 @@ class ApiService {
   }
 
   // Auth endpoints
-  async login(username: string, password: string): Promise<LoginResponse> {
-    try {
-      const response = await fetch(`${API_BASE}auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      })
-      const data : LoginResponse = await response.json()
-      return data
-    } catch (error) {
-      console.error("Error al iniciar sesión:", error)
-      throw error
-    }
+  async login(username: string, password: string): Promise<ResponseBase<DataLoginResponse>> {
+    return await this.request("auth/login", "POST", {
+      username,
+      password,
+    })
   }
 
-  async register(username: string, password: string, name: string): Promise<ApiResponse<unknown>> {
+  async register(username: string, password: string, name: string): Promise<ResponseBase<unknown>> {
     return this.request("auth/register", "POST", {
       username,
       password,
@@ -112,32 +94,38 @@ class ApiService {
   }
 
   // House endpoints
-  async findUserHouse(userId: number): Promise<ApiResponse<House>> {
+  async findUserHouse(userId: number): Promise<ResponseBase<House>> {
     return this.request(`house/findUserHouse`, "POST", {
       userId,
     })
   }
 
-  async createRoom(houseId: number, name: string): Promise<ApiResponse<Room>> {
+  async createRoom(houseId: number, name: string): Promise<ResponseBase<Room>> {
     return this.request("house/createRoom", "POST", {
       houseId,
       name,
     })
   }
 
-  async findDevicesByHouseId(houseId: number): Promise<ApiResponse<Device[]>> {
+  async findDevicesByHouseId(houseId: number): Promise<ResponseBase<Device[]>> {
     return this.request("house/findDevicesByHouseId", "POST", {
       houseId,
     })
   }
 
-  async findDevicesByRoomId(roomId: number): Promise<ApiResponse<Device[]>> {
+  async findRoomsByHouseId(houseId: number): Promise<ResponseBase<Room[]>> {
+    return this.request<Room[]>("house/findRoomsByHouseId", "POST", {
+      houseId,
+    })
+  }
+
+  async findDevicesByRoomId(roomId: number): Promise<ResponseBase<Device[]>> {
     return this.request("house/findDevicesByRoomId", "POST", {
       roomId,
     })
   }
 
-  async createDevice(roomId: number, name: string, pinId: number): Promise<ApiResponse<Device>> {
+  async createDevice(roomId: number, name: string, pinId: number): Promise<ResponseBase<Device>> {
     return this.request("house/createDevice", "POST", {
       roomId,
       name,
@@ -146,21 +134,21 @@ class ApiService {
   }
 
   // Device control endpoints
-  async toggleLight(deviceId: number, light: boolean): Promise<ApiResponse<unknown>> {
+  async toggleLight(deviceId: number, light: boolean): Promise<ResponseBase<unknown>> {
     return this.request("house/lightDevice", "POST", {
       deviceId,
       light,
     })
   }
 
-  async toggleVentilation(deviceId: number, ventilation: boolean): Promise<ApiResponse<unknown>> {
+  async toggleVentilation(deviceId: number, ventilation: boolean): Promise<ResponseBase<unknown>> {
     return this.request("house/ventilationDevice", "POST", {
       deviceId,
       ventilation,
     })
   }
 
-  async getTemperatureByRoom(roomId: number): Promise<ApiResponse<{ temperature: number }>> {
+  async getTemperatureByRoom(roomId: number): Promise<ResponseBase<{ temperature: number }>> {
     return this.request("house/temperatureByRoomId", "POST", {
       roomId,
     })
