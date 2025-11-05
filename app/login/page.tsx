@@ -25,15 +25,15 @@ export default function LoginPage() {
     try {
       const response = await apiService.login(username, password)
 
-      if (response.token && response.userId) {
+      if (response.code === 200 && response.data) {
         localStorage.setItem("isAuthenticated", "true")
-        localStorage.setItem("username", response.username || username)
-        localStorage.setItem("userId", response.userId.toString())
-        localStorage.setItem("authToken", response.token)
+        localStorage.setItem("userId", response.data.id.toString())
+        localStorage.setItem("name", response.data.name)
+        localStorage.setItem("username", response.data.username)
 
         toast({
           title: "Éxito",
-          description: `Bienvenido, ${response.username || username}!`,
+          description: `Bienvenido, ${response.data.name || username}!`,
         })
 
         router.push("/")

@@ -1,4 +1,4 @@
-import { API_URL } from "./config"
+import { API_BASE, API_URL } from "./config"
 
 interface ApiResponse<T> {
   data?: T
@@ -7,10 +7,16 @@ interface ApiResponse<T> {
 }
 
 interface LoginResponse {
-  token?: string
-  userId?: number
-  username?: string
-  message?: string
+    data:    DataLoginResponse | null;
+    message: string;
+    code:    number;
+}
+
+interface DataLoginResponse {
+    id:       number;
+    name:     string;
+    username: string;
+    password: string;
 }
 
 interface House {
@@ -77,15 +83,24 @@ class ApiService {
 
   // Auth endpoints
   async login(username: string, password: string): Promise<LoginResponse> {
-    const response = await this.request<LoginResponse>("auth/login", "POST", {
-      username,
-      password,
-    })
-    if (response.token) {
-      this.token = response.token
-      localStorage.setItem("authToken", response.token)
+    try {
+      const response = await fetch(`${API_BASE}auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      })
+      const data : LoginResponse = await response.json()
+      return data
+    } catch (error) {
+      console.error("Error al iniciar sesión:", error)
+      throw error
     }
-    return response
   }
 
   async register(username: string, password: string, name: string): Promise<ApiResponse<unknown>> {

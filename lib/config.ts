@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001/"
+export const API_BASE = process.env.VERCEL_URL || "https://house-api-azure.vercel.app/"
 
 // Ensure API_BASE ends with /
 const normalizedApiBase = API_BASE.endsWith("/") ? API_BASE : `${API_BASE}/`
